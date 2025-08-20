@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explorador Interativo de Modos de Mesclagem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Minimalist Neutral -->
+    <!-- Application Structure Plan: A single-page application featuring a fixed sidebar for navigation and a main content area. The sidebar allows users to jump directly to any blend mode, promoting non-linear exploration. The main area contains an interactive playground where users can see the effects of each blend mode in real-time by changing layers and opacity. This structure was chosen to transform a passive presentation into an active, hands-on learning tool, which is far more effective for teaching a visual concept like blend modes. -->
+    <!-- Visualization & Content Choices: Explanations for each mode are presented in clear text blocks. The core visualization is an interactive playground built with HTML divs and styled with the native CSS `mix-blend-mode` property. This is the most direct and effective method to demonstrate the concept without unnecessary libraries. User interactions (mode selection, image changes, opacity adjustments) are handled with vanilla JavaScript to dynamically update CSS properties and text content, providing immediate visual feedback. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .blend-container {
+            position: relative;
+            width: 100%;
+            padding-top: 66.66%; /* 3:2 Aspect Ratio */
+            border-radius: 0.75rem;
+            overflow: hidden;
+            background-color: #e2e8f0;
+        }
+        .blend-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+        }
+        .sidebar-link.active {
+            background-color: #e0f2fe;
+            color: #0c4a6e;
+            font-weight: 600;
+        }
+        .control-button.active {
+            background-color: #38bdf8;
+            color: white;
+            border-color: #0ea5e9;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #38bdf8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none; /* Hidden by default */
+        }
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col lg:flex-row">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-full lg:w-64 xl:w-72 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 flex-shrink-0 p-4 lg:p-6">
+        <h1 class="text-xl font-bold text-slate-800 mb-6">Modos de Mesclagem</h1>
+        <nav id="blend-mode-nav" class="space-y-4"></nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 sm:p-6 lg:p-8">
+        <div class="max-w-7xl mx-auto">
+            
+            <!-- Header Section -->
+            <div id="header-section" class="mb-8">
+                <h2 id="mode-title" class="text-3xl font-bold text-slate-900 mb-2"></h2>
+                <p id="mode-description" class="text-lg text-slate-600"></p>
+            </div>
+
+            <!-- Slides Section (only for Introdução) -->
+            <div id="slides-section" class="hidden mb-8">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
+                    <div class="text-center mb-6">
+                        <h3 id="slide-title" class="text-2xl font-bold text-slate-900 mb-2"></h3>
+                        <h4 id="slide-subtitle" class="text-lg text-slate-600 mb-4"></h4>
+                        <div id="slide-content" class="text-slate-700 leading-relaxed max-w-4xl mx-auto"></div>
+                    </div>
+                    
+                    <!-- Navigation Controls -->
+                    <div class="flex justify-between items-center mt-8">
+                        <button id="prev-slide" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            ← Anterior
+                        </button>
+                        
+                        <div class="flex space-x-2">
+                            <span id="slide-counter" class="text-sm text-slate-500"></span>
+                        </div>
+                        
+                        <button id="next-slide" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            Próximo →
+                        </button>
+                    </div>
+                    
+                    <!-- Slide Indicators -->
+                    <div id="slide-indicators" class="flex justify-center space-x-2 mt-4"></div>
+                </div>
+            </div>
+
+            <!-- Interactive Playground -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                
+                <!-- Controls -->
+                <div class="xl:col-span-1 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="text-lg font-semibold mb-3 text-slate-800">Camada Base (Inferior)</h3>
+                            <div id="base-layer-controls" class="grid grid-cols-3 gap-2"></div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold mb-3 text-slate-800">Camada de Mesclagem (Superior)</h3>
+                            <div id="blend-layer-controls" class="grid grid-cols-3 gap-2"></div>
+                        </div>
+                        <div>
+                            <label for="opacity-slider" class="text-lg font-semibold mb-3 text-slate-800 block">Opacidade da Mesclagem</label>
+                            <div class="flex items-center gap-4">
+                                <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                                <span id="opacity-value" class="font-semibold text-slate-700 w-12 text-center">100%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visualizer -->
+                <div class="xl:col-span-2">
+                    <div class="blend-container shadow-lg border border-slate-200">
+                        <div class="loader" id="loader"></div>
+                        <div id="base-layer" class="blend-layer"></div>
+                        <div id="blend-layer" class="blend-layer"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const blendModesData = {
+                'Introdução': {
+                    title: 'Modos de Mesclagem (Blend Modes)',
+                    description: 'Desvendando a Interação entre Camadas no Design Digital',
+                    slides: [
+                        {
+                            title: 'Modos de Mesclagem (Blend Modes)',
+                            subtitle: 'Desvendando a Interação entre Camadas no Design Digital',
+                            content: ''
+                        },
+                        {
+                            title: 'O que são Modos de Mesclagem (Blend Modes)?',
+                            subtitle: '',
+                            content: 'Modos de Mesclagem são funcionalidades essenciais em softwares de edição de imagem e design que controlam como as cores de uma camada (Camada de Mesclagem) interagem e se combinam com as cores da camada que está abaixo dela (Camada Base).'
+                        },
+                        {
+                            title: 'A Magia da Fusão: Por Que Usar Blend Modes?',
+                            subtitle: '',
+                            content: '<strong>Criatividade:</strong> Permitem criar efeitos visuais complexos e únicos, que seriam difíceis de obter de outra forma.<br><br><strong>Flexibilidade:</strong> Oferecem um controle preciso sobre a aparência final, sem alterar permanentemente os pixels originais (edição não destrutiva).<br><br><strong>Eficiência:</strong> Simplificam o processo de adição de luz, sombra, textura e colorização.<br><br><strong>Expressão:</strong> Ajudam a transmitir emoções e atmosferas específicas através da manipulação de cores e tons.'
+                        },
+                        {
+                            title: 'A Interação das Camadas',
+                            subtitle: 'Como Funcionam? A Base',
+                            content: 'Todo Blend Mode opera comparando a cor de cada pixel da <strong>Camada Superior</strong> (ou "Camada de Mesclagem") com a cor do pixel correspondente na <strong>Camada Inferior</strong> (ou "Camada Base").<br><br>Uma fórmula matemática específica é aplicada a essas duas cores para gerar uma <strong>Cor Resultante</strong>.'
+                        },
+                        {
+                            title: 'Mais do que Apenas Sobreposição',
+                            subtitle: 'A "Matemática" por Trás da Mesclagem (Simplificado)',
+                            content: 'Imagine cada pixel como tendo valores de cor (RGB, por exemplo). O blend mode pega esses valores de R, G, B de ambas as camadas, aplica uma operação (como multiplicar, somar, comparar) e então gera novos valores de R, G, B para o pixel final. A complexidade varia de modo para modo.'
+                        }
+                    ]
+                },
+                'Normal': {
+                    title: 'Normal',
+                    description: 'Este é o modo padrão. A camada superior simplesmente cobre a camada inferior, sem nenhuma mistura de cores. Apenas a opacidade afeta o resultado.'
+                },
+                'Dissolve': {
+                    title: 'Dissolve (Dissolver)',
+                    description: 'Mescla as camadas de forma granulada ou "pontilhada". O efeito é mais visível com opacidade reduzida e em bordas suaves.'
+                },
+                'Darken': {
+                    title: 'Darken (Escurecer)',
+                    description: 'Compara as cores de cada pixel e mantém a mais escura. Cores claras na camada de mesclagem são ignoradas.'
+                },
+                'Multiply': {
+                    title: 'Multiply (Multiplicar)',
+                    description: 'Multiplica os valores de cor, resultando em uma cor sempre mais escura. É excelente para criar sombras e profundidade. O branco se torna transparente.'
+                },
+                'Color Burn': {
+                    title: 'Color Burn (Queimadura de Cor)',
+                    description: 'Aumenta o contraste e escurece a cor da base, resultando em tons médios e sombras mais saturados e intensos.'
+                },
+                'Linear Burn': {
+                    title: 'Linear Burn (Queimadura Linear)',
+                    description: 'Escurece a cor da base diminuindo o brilho. O efeito é mais intenso que o Multiply, mas menos saturado que o Color Burn.'
+                },
+                'Lighten': {
+                    title: 'Lighten (Clarear)',
+                    description: 'Compara as cores de cada pixel e mantém a mais clara. Cores escuras na camada de mesclagem são ignoradas.'
+                },
+                'Screen': {
+                    title: 'Screen (Tela)',
+                    description: 'O oposto do Multiply. Multiplica os valores invertidos das cores, resultando em uma cor sempre mais clara. Ótimo para efeitos de luz e brilho. O preto se torna transparente.'
+                },
+                'Color Dodge': {
+                    title: 'Color Dodge (Esquiva de Cor)',
+                    description: 'Clareia a cor da base diminuindo o contraste, resultando em destaques mais brilhantes e saturados. Produz um efeito de luz intenso.'
+                },
+                'Linear Dodge': {
+                    title: 'Linear Dodge (Adicionar)',
+                    description: 'Clareia a cor da base aumentando o brilho. O efeito é semelhante ao Screen, mas mais intenso.'
+                },
+                'Overlay': {
+                    title: 'Overlay (Sobreposição)',
+                    description: 'Combina os modos Multiply e Screen. Escurece as áreas escuras e clareia as áreas claras, aumentando o contraste geral. Preserva os destaques e sombras da camada base.'
+                },
+                'Soft Light': {
+                    title: 'Soft Light (Luz Suave)',
+                    description: 'Aplica um efeito de escurecimento ou clareamento sutil, dependendo da cor da mesclagem. O resultado é semelhante a uma luz difusa sobre a imagem.'
+                },
+                'Hard Light': {
+                    title: 'Hard Light (Luz Forte)',
+                    description: 'Combina Multiply e Screen de forma mais intensa. O resultado é semelhante a uma luz forte e direta sobre a imagem, aumentando drasticamente o contraste.'
+                },
+                'Difference': {
+                    title: 'Difference (Diferença)',
+                    description: 'Subtrai a cor mais escura da mais clara. O branco inverte as cores da base, enquanto o preto não causa nenhuma mudança. Útil para efeitos artísticos ou para alinhar camadas.'
+                },
+                'Exclusion': {
+                    title: 'Exclusion (Exclusão)',
+                    description: 'Cria um efeito semelhante ao Difference, mas com menor contraste. O resultado é mais suave e menos saturado.'
+                },
+                'Hue': {
+                    title: 'Hue (Matiz)',
+                    description: 'Aplica a matiz (a cor pura) da camada de mesclagem, mantendo a luminosidade e a saturação da camada base. Perfeito para colorir imagens.'
+                },
+                'Saturation': {
+                    title: 'Saturation (Saturação)',
+                    description: 'Aplica a saturação da camada de mesclagem, mantendo a matiz e a luminosidade da camada base. Útil para aumentar ou diminuir a intensidade das cores.'
+                },
+                'Color': {
+                    title: 'Color (Cor)',
+                    description: 'Aplica a matiz e a saturação da camada de mesclagem, mantendo a luminosidade da camada base. É o modo ideal para colorir imagens em preto e branco.'
+                },
+                'Luminosity': {
+                    title: 'Luminosity (Luminosidade)',
+                    description: 'Aplica a luminosidade da camada de mesclagem, mantendo a matiz e a saturação da camada base. Útil para ajustar o contraste sem alterar as cores.'
+                }
+            };
+
+            const blendModeGroups = [
+                { name: 'Introdução', modes: ['Introdução'] },
+                { name: 'Normal', modes: ['Normal', 'Dissolve'] },
+                { name: 'Escurecer', modes: ['Darken', 'Multiply', 'Color Burn', 'Linear Burn'] },
+                { name: 'Clarear', modes: ['Lighten', 'Screen', 'Color Dodge', 'Linear Dodge'] },
+                { name: 'Contraste', modes: ['Overlay', 'Soft Light', 'Hard Light'] },
+                { name: 'Comparação', modes: ['Difference', 'Exclusion'] },
+                { name: 'Componentes', modes: ['Hue', 'Saturation', 'Color', 'Luminosity'] }
+            ];
+
+            const images = {
+                base: [
+                    { name: 'Paisagem', url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200' },
+                    { name: 'Retrato', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1200' },
+                    { name: 'Textura', url: 'https://cdn.pixabay.com/photo/2024/01/18/09/06/wood-8516531_1280.png' }
+                ],
+                blend: [
+                    { name: 'Gradiente', url: 'linear-gradient(45deg, #ff8a00, #e52e71)' },
+                    { name: 'Luzes', url: 'https://placehold.co/800x600/FFD700/FFD700' },
+                    { name: 'Padrão', url: 'https://placehold.co/800x600/A7D9D0/A7D9D0' }
+                ]
+            };
+
+            const navContainer = document.getElementById('blend-mode-nav');
+            const modeTitle = document.getElementById('mode-title');
+            const modeDescription = document.getElementById('mode-description');
+            const baseLayer = document.getElementById('base-layer');
+            const blendLayer = document.getElementById('blend-layer');
+            const opacitySlider = document.getElementById('opacity-slider');
+            const opacityValue = document.getElementById('opacity-value');
+            const baseControls = document.getElementById('base-layer-controls');
+            const blendControls = document.getElementById('blend-layer-controls');
+            const loader = document.getElementById('loader');
+            
+            // Slides elements
+            const slidesSection = document.getElementById('slides-section');
+            const slideTitle = document.getElementById('slide-title');
+            const slideSubtitle = document.getElementById('slide-subtitle');
+            const slideContent = document.getElementById('slide-content');
+            const slideCounter = document.getElementById('slide-counter');
+            const slideIndicators = document.getElementById('slide-indicators');
+            const prevSlideBtn = document.getElementById('prev-slide');
+            const nextSlideBtn = document.getElementById('next-slide');
+
+            let currentBlendMode = 'normal';
+            let currentBaseImage = images.base[0].url;
+            let currentBlendImage = images.blend[0].url;
+            let currentSlideIndex = 0;
+
+            function toKebabCase(str) {
+                return str.replace(/\s+/g, '-').toLowerCase();
+            }
+
+            function initSlides() {
+                const introData = blendModesData['Introdução'];
+                if (!introData.slides) return;
+
+                // Create slide indicators
+                slideIndicators.innerHTML = '';
+                introData.slides.forEach((_, index) => {
+                    const indicator = document.createElement('button');
+                    indicator.className = 'w-3 h-3 rounded-full bg-slate-300 hover:bg-slate-400 transition-colors';
+                    indicator.addEventListener('click', () => goToSlide(index));
+                    slideIndicators.appendChild(indicator);
+                });
+
+                updateSlide();
+            }
+
+            function updateSlide() {
+                const introData = blendModesData['Introdução'];
+                if (!introData.slides || currentSlideIndex >= introData.slides.length) return;
+
+                const slide = introData.slides[currentSlideIndex];
+                
+                slideTitle.textContent = slide.title;
+                slideSubtitle.textContent = slide.subtitle;
+                slideContent.innerHTML = slide.content;
+                slideCounter.textContent = `${currentSlideIndex + 1} de ${introData.slides.length}`;
+
+                // Update indicators
+                slideIndicators.querySelectorAll('button').forEach((indicator, index) => {
+                    indicator.classList.toggle('bg-blue-500', index === currentSlideIndex);
+                    indicator.classList.toggle('bg-slate-300', index !== currentSlideIndex);
+                });
+
+                // Update navigation buttons
+                prevSlideBtn.disabled = currentSlideIndex === 0;
+                nextSlideBtn.disabled = currentSlideIndex === introData.slides.length - 1;
+            }
+
+            function goToSlide(index) {
+                const introData = blendModesData['Introdução'];
+                if (!introData.slides || index < 0 || index >= introData.slides.length) return;
+                
+                currentSlideIndex = index;
+                updateSlide();
+            }
+
+            function nextSlide() {
+                const introData = blendModesData['Introdução'];
+                if (currentSlideIndex < introData.slides.length - 1) {
+                    currentSlideIndex++;
+                    updateSlide();
+                }
+            }
+
+            function prevSlide() {
+                if (currentSlideIndex > 0) {
+                    currentSlideIndex--;
+                    updateSlide();
+                }
+            }
+
+            function updateDisplay() {
+                const modeKey = Object.keys(blendModesData).find(k => toKebabCase(k) === toKebabCase(currentBlendMode)) || 'Introdução';
+                const data = blendModesData[modeKey];
+                
+                modeTitle.textContent = data.title;
+                modeDescription.textContent = data.description;
+                
+                // Show/hide slides section based on mode
+                if (modeKey === 'Introdução') {
+                    currentSlideIndex = 0; // Reset slide index when returning to introduction
+                    slidesSection.classList.remove('hidden');
+                    document.querySelector('.grid').classList.add('hidden'); // Hide the interactive playground
+                    initSlides();
+                } else {
+                    slidesSection.classList.add('hidden');
+                    document.querySelector('.grid').classList.remove('hidden'); // Show the interactive playground
+                    blendLayer.style.mixBlendMode = toKebabCase(currentBlendMode);
+                }
+                
+                document.querySelectorAll('.sidebar-link').forEach(link => {
+                    link.classList.toggle('active', toKebabCase(link.dataset.mode) === toKebabCase(currentBlendMode));
+                });
+            }
+
+            function loadImage(layerElement, url) {
+                return new Promise((resolve, reject) => {
+                    if (url.startsWith('linear-gradient')) {
+                        layerElement.style.backgroundImage = url;
+                        resolve();
+                    } else {
+                        const img = new Image();
+                        img.src = url;
+                        img.onload = () => {
+                            layerElement.style.backgroundImage = `url(${url})`;
+                            resolve();
+                        };
+                        img.onerror = () => {
+                            layerElement.style.backgroundImage = `url(https://placehold.co/1200x800/f8fafc/1e293b?text=Erro+ao+carregar)`;
+                            console.error(`Error: Failed to load image: ${url}`);
+                            reject(new Error(`Failed to load image: ${url}`));
+                        };
+                    }
+                });
+            }
+            
+            async function applyImages() {
+                loader.style.display = 'block';
+                try {
+                    await Promise.all([
+                        loadImage(baseLayer, currentBaseImage),
+                        loadImage(blendLayer, currentBlendImage)
+                    ]);
+                } catch (error) {
+                    //console.error(error); // Keep console error for debugging
+                } finally {
+                    loader.style.display = 'none';
+                }
+            }
+
+            // Init navigation
+            blendModeGroups.forEach(group => {
+                const groupTitle = document.createElement('h3');
+                groupTitle.className = 'text-sm font-semibold text-slate-500 uppercase tracking-wider mt-4 first:mt-0';
+                groupTitle.textContent = group.name;
+                navContainer.appendChild(groupTitle);
+
+                const modeList = document.createElement('div');
+                modeList.className = 'space-y-1';
+                group.modes.forEach(mode => {
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.textContent = mode;
+                    link.dataset.mode = mode;
+                    link.className = 'sidebar-link block px-3 py-2 rounded-md text-slate-600 hover:bg-slate-100 transition-colors';
+                    modeList.appendChild(link);
+                });
+                navContainer.appendChild(modeList);
+            });
+
+            // Init controls
+            function createControlButtons(type, container) {
+                images[type].forEach((img, index) => {
+                    const button = document.createElement('button');
+                    button.textContent = img.name;
+                    button.dataset.url = img.url;
+                    button.className = 'control-button px-2 py-1 text-sm border border-slate-300 rounded-md hover:bg-slate-100 transition-colors';
+                    if (index === 0) button.classList.add('active');
+                    container.appendChild(button);
+                });
+            }
+            createControlButtons('base', baseControls);
+            createControlButtons('blend', blendControls);
+            
+            // Event Listeners
+            navContainer.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (e.target.matches('.sidebar-link')) {
+                    currentBlendMode = e.target.dataset.mode;
+                    updateDisplay();
+                }
+            });
+
+            opacitySlider.addEventListener('input', (e) => {
+                blendLayer.style.opacity = e.target.value;
+                opacityValue.textContent = `${Math.round(e.target.value * 100)}%`;
+            });
+            
+            function handleControlClick(e, type, container) {
+                if(e.target.matches('.control-button')) {
+                    if (type === 'base') {
+                        currentBaseImage = e.target.dataset.url;
+                    } else {
+                        currentBlendImage = e.target.dataset.url;
+                    }
+                    container.querySelectorAll('.control-button').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    applyImages();
+                }
+            }
+            
+            baseControls.addEventListener('click', (e) => handleControlClick(e, 'base', baseControls));
+            blendControls.addEventListener('click', (e) => handleControlClick(e, 'blend', blendControls));
+
+            // Slides navigation event listeners
+            nextSlideBtn.addEventListener('click', nextSlide);
+            prevSlideBtn.addEventListener('click', prevSlide);
+
+            // Keyboard navigation for slides
+            document.addEventListener('keydown', (e) => {
+                if (slidesSection.classList.contains('hidden')) return;
+                
+                if (e.key === 'ArrowRight' || e.key === 'Space') {
+                    e.preventDefault();
+                    nextSlide();
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    prevSlide();
+                }
+            });
+
+            // Initial Load
+            currentBlendMode = 'Introdução';
+            updateDisplay();
+            applyImages();
+        });
+    </script>
+</body>
+</html>
